@@ -34,7 +34,7 @@ Click the link to see the live hosted of this application
 
 ```bash
 git clone <repo-url>
-cd lm-2
+cd TSR-ICIM-2026
 pnpm install
 ```
 
