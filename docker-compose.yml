@@ -1,0 +1,50 @@
+# ─────────────────────────────────────────────────────────────
+# TSR · Staging environment
+# Usage:
+#   docker compose up --build -d
+# ─────────────────────────────────────────────────────────────
+
+name: tsr-staging
+
+services:
+
+  # ── Database (MariaDB 11) ──────────────────────────────────
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    env_file:
+      - .env.staging          # provides MARIADB_ROOT_PASSWORD, MARIADB_DATABASE, etc.
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - tsr_net
+
+  # ── Next.js App ────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    restart: unless-stopped
+    env_file:
+      - .env.staging          # provides DATABASE_URL, JWT_SECRET, etc.
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tsr_net
+
+volumes:
+  db_data:
+
+networks:
+  tsr_net:
+    driver: bridge

@@ -1,0 +1,30 @@
+# Dependencies — reinstalled inside the image
+node_modules
+
+# Build outputs — produced inside the image
+.next
+
+# Environment files — injected at runtime via docker-compose
+.env
+.env.*
+!.env.staging.example
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Editor / OS
+.vscode
+.idea
+*.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Docker files themselves
+Dockerfile*
+docker-compose*

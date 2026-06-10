@@ -1,0 +1,557 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum Difficulty {
+  APPRENTICE // Easy   — hints always visible
+  ADVENTURER // Average — hints on request
+  CHAMPION // Hard   — no hints
+}
+
+enum StageType {
+  MULTIPLE_CHOICE // Stage 1 — categorize problem type
+  RANKING // Stage 2 — drag-to-rank priorities
+  OPEN_ENDED // Stage 3, 6, 9, 12 — text responses
+  TABLE_INPUT // Stage 4 — given/missing/assumed table
+  CHECKLIST // Stage 5 — constraint checklist
+  COMPUTATION // Stage 7 — live budget calculator
+  MULTI_PLAN // Stage 8 — plan A vs plan B
+  BUDGET_CHECK // Stage 10 — trial implementation checker
+  SELECT_JUSTIFY // Stage 11 — choose + reasoning
+  REFLECTION_SLIDER // Stage 12 — metacognitive slider + text
+}
+
+enum StagePhase {
+  UNDERSTANDING // Stages 1–3  · Blue
+  ANALYSIS // Stages 4–7  · Purple
+  SOLUTION // Stages 8–10 · Amber
+  REFLECTION // Stages 11–12 · Green
+}
+
+enum DiagnosticLevel {
+  PROFICIENT // 80–100%
+  DEVELOPING // 60–79%
+  STRUGGLING // below 60%
+}
+
+enum TestType {
+  PRE_TEST
+  POST_TEST
+}
+
+enum ModuleStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum AvatarType {
+  WIZARD
+  ELF
+  HERO
+  CHAMPION
+  EXPLORER
+  FOX
+  DRAGON
+  LION
+  EAGLE
+  WOLF
+}
+
+// ============================================================
+// USER & PROFILE
+// ============================================================
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String // bcrypt hashed
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  profile   StudentProfile?
+  teacherOf Section[]       @relation("TeacherSections")
+
+  progress    ModuleProgress[]
+  responses   StageResponse[]
+  testResults TestResult[]
+  diagnostic  DiagnosticReport[]
+  sessions    UserSession[]
+
+  inviteCodesCreated TeacherInviteCode[] @relation("InviteCreatedBy")
+  inviteCodeUsed     TeacherInviteCode[] @relation("InviteUsedBy")
+  quizResponses      ModuleQuizResponse[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// Student-specific profile — set during game setup
+model StudentProfile {
+  id          Int        @id @default(autoincrement())
+  userId      Int        @unique
+  avatar      AvatarType @default(WIZARD)
+  avatarEmoji String     @default("🧙‍♂️")
+  avatarName  String     @default("The Wizard")
+  difficulty  Difficulty @default(ADVENTURER)
+  sectionId   Int?
+  schoolId    Int?
+  xp          Int        @default(0) // experience points
+  level       Int        @default(1) // gamification level
+  streak      Int        @default(0) // consecutive days active
+  badges      Json? // earned achievement badges
+  setupDone   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  section Section? @relation(fields: [sectionId], references: [id])
+  school  School?  @relation(fields: [schoolId], references: [id])
+
+  @@index([userId])
+  @@index([sectionId])
+  @@index([schoolId])
+  @@map("student_profiles")
+}
+
+// ============================================================
+// SECTION / CLASS
+// ============================================================
+
+model School {
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  sections Section[]
+  students StudentProfile[]
+
+  @@map("schools")
+}
+
+model Section {
+  id         Int      @id @default(autoincrement())
+  name       String // e.g. "Narra", "Molave", "Kamagong"
+  emoji      String   @default("🌲")
+  gradeLevel String   @default("Grade 6")
+  teacherId  Int?
+  schoolId   Int?
+  schoolYear String? // e.g. "2025-2026"
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  teacher             User?              @relation("TeacherSections", fields: [teacherId], references: [id])
+  school              School?            @relation(fields: [schoolId], references: [id])
+  students            StudentProfile[]
+  moduleAssignments   ModuleAssignment[]
+  testSetAssignments  TestSetAssignment[]
+
+  @@index([teacherId])
+  @@index([schoolId])
+  @@map("sections")
+}
+
+// ============================================================
+// SCENARIO CONTEXT (dynamic — replaces enum)
+// ============================================================
+
+model ScenarioContext {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(50) // e.g. "FEEDING_PROGRAM"
+  label       String   @db.VarChar(100)        // e.g. "Barangay Feeding Program"
+  description String?  @db.VarChar(200)        // e.g. "Money & Operations"
+  icon        String   @default("📦") @db.VarChar(10)
+  color       String   @default("#64748B") @db.VarChar(20)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("scenario_contexts")
+}
+
+// ============================================================
+// MODULE
+// ============================================================
+
+model Module {
+  id           Int    @id @default(autoincrement())
+  title        String
+  subtitle     String?
+  context      String @db.VarChar(50) // key → ScenarioContext.key
+  scenario     String @db.Text // The anchor problem text
+  icon         String          @default("📦")
+  status       ModuleStatus    @default(ACTIVE)
+  isLocked     Boolean         @default(false)
+  unlockAfter  Int? // unlock after completing N modules
+  gradeLevel   String          @default("Grade 6")
+  timeEstimate Int? // estimated minutes to complete
+  melcTags     Json? // array of MELC strings
+  bannerUrl       String? @db.Text // optional banner image URL
+  createdByUserId Int?            // userId of the teacher/admin who created this module
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  stages        Stage[]
+  progress      ModuleProgress[]
+  assignments   ModuleAssignment[]
+  testSets      TestSet[]
+  quizQuestions ModuleQuizQuestion[]
+  quizResponses ModuleQuizResponse[]
+
+  @@index([context])
+  @@index([status])
+  @@map("modules")
+}
+
+// Questions attached to a module that students answer after all 12 stages
+model ModuleQuizQuestion {
+  id           Int      @id @default(autoincrement())
+  moduleId     Int
+  module       Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  questionNum  Int
+  questionText String   @db.Text
+  type         String   @default("open_ended") // "multiple_choice" | "ranking" | "open_ended"
+  options      Json?    // { choices, rankItems, starterChips, minChars }
+  correctAnswer String? @db.Text
+  hint         String?  @db.Text
+  maxScore     Int      @default(10)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  responses ModuleQuizResponse[]
+
+  @@unique([moduleId, questionNum])
+  @@map("module_quiz_questions")
+}
+
+// Student responses to module quiz questions
+model ModuleQuizResponse {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  moduleId    Int
+  questionId  Int
+  answer      String   @db.Text
+  score       Int?
+  isCorrect   Boolean?
+  gradedAt    DateTime?
+  teacherNote String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User               @relation(fields: [userId], references: [id])
+  module   Module             @relation(fields: [moduleId], references: [id])
+  question ModuleQuizQuestion @relation(fields: [questionId], references: [id])
+
+  @@unique([userId, questionId])
+  @@map("module_quiz_responses")
+}
+
+// Assignment links a module to a section
+model ModuleAssignment {
+  id         Int       @id @default(autoincrement())
+  moduleId   Int
+  sectionId  Int
+  assignedAt DateTime  @default(now())
+  dueDate    DateTime?
+
+  module  Module  @relation(fields: [moduleId], references: [id])
+  section Section @relation(fields: [sectionId], references: [id])
+
+  @@unique([moduleId, sectionId])
+  @@map("module_assignments")
+}
+
+// ============================================================
+// STAGE
+// ============================================================
+
+model Stage {
+  id            Int        @id @default(autoincrement())
+  moduleId      Int
+  stageNumber   Int // 1–12
+  phase         StagePhase
+  title         String // e.g. "Identify & Categorize"
+  instruction   String     @db.Text
+  type          StageType
+  hint          String?    @db.Text // shown based on difficulty
+  options       Json? // for MULTIPLE_CHOICE, CHECKLIST, RANKING
+  correctAnswer String?    @db.Text // for auto-scoreable stages
+  maxScore      Int        @default(10)
+  timeLimit     Int? // seconds; null = no limit
+  melc          String? // specific MELC for this stage
+  createdAt     DateTime   @default(now())
+
+  module    Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  responses StageResponse[]
+
+  @@unique([moduleId, stageNumber])
+  @@index([moduleId])
+  @@index([phase])
+  @@map("stages")
+}
+
+// ============================================================
+// STUDENT PROGRESS & RESPONSES
+// ============================================================
+
+model ModuleProgress {
+  id             Int            @id @default(autoincrement())
+  userId         Int
+  moduleId       Int
+  difficulty     Difficulty
+  status         ProgressStatus @default(NOT_STARTED)
+  currentStage   Int            @default(1)
+  totalScore     Int? // computed after completion
+  maxPossible    Int? // sum of all stage maxScores
+  percentScore   Float? // totalScore / maxPossible * 100
+  timeSpentTotal Int? // total seconds across all stages
+  startedAt      DateTime       @default(now())
+  completedAt    DateTime?
+  lastActiveAt   DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module @relation(fields: [moduleId], references: [id])
+
+  @@unique([userId, moduleId])
+  @@index([userId])
+  @@index([moduleId])
+  @@index([status])
+  @@map("module_progress")
+}
+
+model StageResponse {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  stageId     Int
+  moduleId    Int
+  answer      String    @db.Text // JSON string for complex answers
+  isCorrect   Boolean? // null = needs manual grading
+  score       Int? // score awarded for this stage
+  timeSpent   Int? // seconds taken on this stage
+  hintsUsed   Int       @default(0)
+  attempts    Int       @default(1)
+  teacherNote String?   @db.Text // teacher feedback on open-ended
+  gradedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stage Stage @relation(fields: [stageId], references: [id])
+
+  @@unique([userId, stageId]) // one response per stage per student
+  @@index([userId])
+  @@index([stageId])
+  @@index([moduleId])
+  @@map("stage_responses")
+}
+
+// ============================================================
+// DIAGNOSTIC ENGINE
+// ============================================================
+
+model DiagnosticReport {
+  id       Int @id @default(autoincrement())
+  userId   Int
+  moduleId Int
+
+  // Cluster scores (0–100)
+  understandingScore Float? // Stages 1–3
+  analysisScore      Float? // Stages 4–7
+  solutionScore      Float? // Stages 8–10
+  reflectionScore    Float? // Stages 11–12
+  overallScore       Float?
+
+  // Diagnostic levels per cluster
+  understandingLevel DiagnosticLevel?
+  analysisLevel      DiagnosticLevel?
+  solutionLevel      DiagnosticLevel?
+  reflectionLevel    DiagnosticLevel?
+
+  // Weak stage flags (JSON array of stage numbers)
+  weakStages   Json?
+  strongStages Json?
+
+  // Computed flags
+  needsIntervention Boolean @default(false)
+  interventionNote  String? @db.Text // teacher or auto-generated note
+
+  generatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+  @@index([userId])
+  @@index([moduleId])
+  @@index([needsIntervention])
+  @@map("diagnostic_reports")
+}
+
+// ============================================================
+// PRE-TEST & POST-TEST
+// ============================================================
+
+model TestSet {
+  id          Int      @id @default(autoincrement())
+  moduleId    Int? // linked module (optional)
+  type        TestType
+  title       String
+  description String?  @db.Text
+  timeLimit   Int? // seconds for entire test; null = untimed
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  module      Module?             @relation(fields: [moduleId], references: [id])
+  questions   TestQuestion[]
+  results     TestResult[]
+  assignments TestSetAssignment[]
+
+  @@index([type])
+  @@map("test_sets")
+}
+
+model TestQuestion {
+  id           Int     @id @default(autoincrement())
+  testSetId    Int
+  questionNum  Int // 1–20
+  context      String // e.g. "Sari-Sari Store"
+  questionText String  @db.Text
+  answer       String // correct answer: value for open types; "A"/"B"/"C"/"D" for multiple_choice
+  answerType   String  @default("number") // "number" | "text" | "time" | "multiple_choice"
+  choices      String? @db.Text // JSON array of 4 strings, only for multiple_choice
+  difficulty   String  @default("average") // "easy" | "average" | "difficult"
+  melc         String?
+  points       Int     @default(1)
+
+  testSet   TestSet        @relation(fields: [testSetId], references: [id], onDelete: Cascade)
+  responses TestResponse[]
+
+  @@unique([testSetId, questionNum])
+  @@index([testSetId])
+  @@map("test_questions")
+}
+
+model TestResult {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  testSetId    Int
+  type         TestType
+  score        Int // number of correct answers
+  totalItems   Int // total questions
+  percentScore Float // score / totalItems * 100
+  timeSpent    Int? // seconds
+  submittedAt  DateTime @default(now())
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  testSet   TestSet        @relation(fields: [testSetId], references: [id])
+  responses TestResponse[]
+
+  @@unique([userId, testSetId]) // one attempt per test per student
+  @@index([userId])
+  @@index([testSetId])
+  @@index([type])
+  @@map("test_results")
+}
+
+model TestResponse {
+  id            Int      @id @default(autoincrement())
+  testResultId  Int
+  questionId    Int
+  studentAnswer String   @db.Text
+  isCorrect     Boolean
+  createdAt     DateTime @default(now())
+
+  testResult TestResult   @relation(fields: [testResultId], references: [id], onDelete: Cascade)
+  question   TestQuestion @relation(fields: [questionId], references: [id])
+
+  @@index([testResultId])
+  @@index([questionId])
+  @@map("test_responses")
+}
+
+// ============================================================
+// TEST SET ASSIGNMENTS
+// ============================================================
+
+model TestSetAssignment {
+  id         Int      @id @default(autoincrement())
+  testSetId  Int
+  sectionId  Int
+  assignedAt DateTime @default(now())
+
+  testSet TestSet @relation(fields: [testSetId], references: [id], onDelete: Cascade)
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([testSetId, sectionId])
+  @@index([testSetId])
+  @@index([sectionId])
+  @@map("test_set_assignments")
+}
+
+// ============================================================
+// SESSION TRACKING
+// ============================================================
+
+model UserSession {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique @db.VarChar(512)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("user_sessions")
+}
+
+model TeacherInviteCode {
+  id          Int       @id @default(autoincrement())
+  code        String    @unique @db.VarChar(64)
+  label       String?   @db.VarChar(120)   // optional note, e.g. "Batch 2026-A"
+  createdById Int
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+  usedById    Int?
+  usedAt      DateTime?
+  isActive    Boolean   @default(true)
+
+  createdBy User  @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  usedBy    User? @relation("InviteUsedBy",    fields: [usedById],    references: [id])
+
+  @@index([code])
+  @@index([isActive])
+  @@map("teacher_invite_codes")
+}
+
