@@ -16,19 +16,8 @@ Rather than presenting math as isolated computation, TSR walks each student thro
 
 ---
 
-## 2. Research Rationale
 
-| Problem Observed | TSR's Response |
-|---|---|
-| Students jump to computation without understanding the problem | Stages 1–3 force categorization, prioritization, and explanation *before* any number-crunching |
-| Problem-solving is graded only on final answers | Every stage is scored individually, so the *process* is visible, not just the result |
-| Teachers lack visibility into *where* a student's reasoning breaks down | Diagnostic reports isolate performance by cognitive phase (Understanding / Analysis / Solution / Reflection), not just an overall score |
-| Paper-based problem-solving worksheets don't scale or self-grade | Auto-scored stages reduce teacher workload; open-ended stages are routed to teachers only where human judgment is needed |
-| One-size-fits-all difficulty discourages struggling or advanced learners | Students choose a difficulty tier that adjusts hint availability without changing the underlying problem |
-
----
-
-## 3. The Think–Solve–Reflect Framework, As a System
+## 2. The Think–Solve–Reflect Framework, As a System
 
 The 12 stages are grouped into four phases that mirror the framework's cognitive progression:
 
@@ -48,7 +37,7 @@ This is the system's central research contribution: it does not just *ask* stude
 
 ---
 
-## 4. Who Uses It
+## 3. Who Uses It
 
 | Role | What they experience |
 |---|---|
@@ -58,7 +47,7 @@ This is the system's central research contribution: it does not just *ask* stude
 
 ---
 
-## 5. From Response to Diagnosis
+## 4. From Response to Diagnosis
 
 Every answer a student submits — whether multiple choice, a ranking, a free-text reflection, or a calculation — is recorded individually. The system then aggregates these into a **Diagnostic Report** per student, per module, broken down by phase:
 
@@ -71,7 +60,7 @@ This turns what would otherwise be a single test score into a map of *where in t
 
 ---
 
-## 6. Why a Web Application
+## 5. Why a Web Application
 
 Building TSR as a web application — rather than a paper instrument or a standalone offline tool — was a deliberate methodological choice:
 
@@ -82,7 +71,7 @@ Building TSR as a web application — rather than a paper instrument or a standa
 
 ---
 
-## 7. Summary
+## 6. Summary
 
 TSR is not a digitized worksheet — it is a structured implementation of a problem-solving pedagogy, built to make each step of student reasoning visible, gradable, and diagnosable. The system's value to this research is twofold: it demonstrates that the Think–Solve–Reflect framework can be operationalized as a usable, scalable web tool, and it generates the granular, phase-level data needed to evaluate its instructional impact on Grade 6 students.
 
