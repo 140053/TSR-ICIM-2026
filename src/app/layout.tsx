@@ -5,6 +5,7 @@ import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Starfield from "@/components/wrapper/starfield";
 
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -56,6 +57,7 @@ export default function RootLayout({
         `}
       >
         <Starfield />
+       
         <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
